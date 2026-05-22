@@ -116,11 +116,24 @@ copy_dir() {
   cp -r "$src"/. "$dst"/
 }
 
+copy_secret_if_missing() {
+  local src="$1" dst="$2"
+  [ -f "$src" ] || return 0
+  if [ -f "$dst" ]; then
+    echo "    skip $dst (already exists — edit in place to set real key)"
+    return 0
+  fi
+  install -m 0600 "$src" "$dst"
+}
+
 echo "==> Copying .gitconfig (identity set separately by set-git-identity.sh)"
 copy_dotfile "$DOTFILES_DIR/.gitconfig" "$HOME/.gitconfig"
 
 echo "==> Merging .zshrc (preserving cloud-init's defaults)"
 merge_append "$DOTFILES_DIR/.zshrc" "$HOME/.zshrc"
+
+echo "==> Seeding ~/.zshrc.local (mode 0600, only if missing)"
+copy_secret_if_missing "$DOTFILES_DIR/.zshrc.local" "$HOME/.zshrc.local"
 
 echo "==> Copying .aliases"
 copy_dotfile "$DOTFILES_DIR/.aliases" "$HOME/.aliases"

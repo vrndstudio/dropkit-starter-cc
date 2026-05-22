@@ -33,3 +33,6 @@ export NVM_DIR="$HOME/.nvm"
 # ─── bun ──────────────────────────────────────────────────
 export BUN_INSTALL="$HOME/.bun"
 [ -d "$BUN_INSTALL/bin" ] && export PATH="$BUN_INSTALL/bin:$PATH"
+
+# --- local config ----
+[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local

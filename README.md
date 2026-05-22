@@ -62,7 +62,7 @@ Installs:
 - System: `nodejs`, `npm`, `ripgrep`, `fzf`, `jq`, `tmux`, `bubblewrap`, `socat`
 - Node global: `@anthropic-ai/claude-code`, corepack (pnpm/yarn on demand)
 - Shell: oh-my-zsh + `zsh-autosuggestions` + `zsh-syntax-highlighting`; sets zsh as login shell
-- Dotfiles: `.gitconfig`, `.aliases`, `.zshrc` (merged — preserves cloud-init defaults, re-runs are safe)
+- Dotfiles: `.gitconfig`, `.aliases`, `.zshrc` (merged — preserves cloud-init defaults, re-runs are safe), `.zshrc.local` (mode `0600`, holds env vars)
 - Claude Code: `~/.claude/{CLAUDE.md, settings.json, statusline.sh, commands/, templates/}` + `~/.mcp.json`
 
 Optional: `INSTALL_GSD=1 bash install.sh` also installs the [get-shit-done](https://github.com/JamesAndresen/get-shit-done) skill pack.
@@ -77,7 +77,14 @@ bash set-git-identity.sh
 
 ### Set Exa API key (optional)
 
-`.mcp.json` ships with an `EXA_API_KEY` placeholder and `settings.local.json` keeps the exa MCP server disabled until you replace it. Skip if you don't need Exa search.
+`.mcp.json` references `$EXA_API_KEY` from the environment — the key itself lives in `~/.zshrc.local` (mode `0600`, git-ignored, sourced by `~/.zshrc`).
+Edit it in place after first install:
+
+```shell
+nvim ~/.zshrc.local              # replace your-api-key-here with the real Exa key
+exec zsh -l                      # reload so EXA_API_KEY is exported
+echo "$EXA_API_KEY"              # sanity-check
+```
 
 ## Usage
 
