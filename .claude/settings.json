@@ -5,6 +5,7 @@
   "alwaysThinkingEnabled": false,
   "model": "opus",
   "effort": "high",
+  "effortLevel": "high",
   "sandbox": {
     "enabled": true,
     "autoAllowBashIfSandboxed": false
@@ -17,7 +18,8 @@
     "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
     "DISABLE_FEEDBACK_COMMAND": "1",
     "BASH_DEFAULT_TIMEOUT_MS": "30000",
-    "NODE_ENV": "development"
+    "NODE_ENV": "development",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
   },
   "statusLine": {
     "type": "command",
@@ -26,6 +28,7 @@
   "permissions": {
     "allowedTools": ["Read", "Write"],
     "allow": [
+      "Bash(pwd)",
       "Bash(ls *)",
       "Bash(find *)",
       "Bash(cat *)",
@@ -41,6 +44,7 @@
       "Bash(rm *)",
       "Bash(sleep *)",
       "Bash(echo *)",
+      "Bash(awk *)",
 
       "Bash(git add:*)",
       "Bash(git commit:*)",
@@ -68,17 +72,24 @@
       "Bash(pnpm test*)",
       "Bash(pnpm build*)",
       "Bash(pnpm dlx *)",
+      "Bash(pnpm tsc *)",
+      "Bash(pnpm --version)",
       "Bash(node *)",
       "Bash(bun *)",
+      "Bash(pnpm tailwindcss *)",
 
       "Bash(curl http://localhost:*)",
       "Bash(curl -s http://localhost:*)",
       "Bash(curl -sS http://localhost:*)",
+      "Bash(curl -sS http://localhost:3000)",
       "Bash(curl -i http://localhost:*)",
       "Bash(curl http://127.0.0.1:*)",
       "Bash(curl -s http://127.0.0.1:*)",
+      "Bash(claude mcp *)",
       "mcp__exa__web_search_exa",
-      "mcp__exa__web_fetch_exa"
+      "mcp__exa__web_fetch_exa",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs"
     ],
     "deny": [
       "Write(production.*)",
