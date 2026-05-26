@@ -9,9 +9,11 @@ Follow [dropkit setup steps](https://github.com/trailofbits/dropkit#installation
 Recommended minimum settings for new droplets:
 
 ```
-Size:       s-2vcpu-4gb
+Size:       s-2vcpu-8gb-160gb-intel      #    $48.00 /m
 Image:      ubuntu-24-04-x64             # supported til 2029
 ```
+
+`s-2vcpu-4gb` was mostly fine but experienced drop-outs periodically which made dev experience not ideal
 
 ### Workflow
 
@@ -109,6 +111,16 @@ Just drag drop files into the vscode files explorer
 
 ## Development
 
+### Always run dev servers in tmux
+Even with more RAM, do this. It uncouples your dev server from your SSH session entirely:
+```bash
+tmux new -s dev
+pnpm start
+# Ctrl+B then D to detach
+```
+
+If SSH drops, pnpm start keeps running. Reconnect, tmux attach -t dev, and you're back where you were. Combined with running Claude Code in its own tmux session (per my last reply), you stop caring about SSH stability at all.
+
 ### Maintenance
 
 ```bash
@@ -121,6 +133,8 @@ remove ophanated deps
 
 ### Know issues
 
+- bemore specific on curl url preferences as detailed in the warning bit here https://code.claude.com/docs/en/permissions#read-only-commands
+- Backslash-escaped paths: standardize in `CLAUDE.md` for bash commands: always quote paths with spaces, never backslash-escape. `.../Portfolio\ v3.html` — glob matching can't unescape backslashes. The same path with quotes (`"Portfolio v3.html"`) matches normally.
 - difficulty running 2 parallel claude sessions
 - laggy commands sometimes
 - only way to copy directories is pushing them as public repos?
