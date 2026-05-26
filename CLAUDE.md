@@ -113,7 +113,11 @@ _(none — last urgent batch landed)_
 
 - sandboxing triggers many unsandboxed interuption asks
 - how to scan skills/plugins before adding
-- install gh (claude loves it) `sudo apt install gh`
+- install
+  - gh (claude loves it) `sudo apt install gh`
+  - `jq`
+  - `npm install -g typescript-language-server typescript` for claude typescript plugin
+
 - let me run servers and check browser myself
 - how to set env variables????? (convo in cc in droplet)
 
