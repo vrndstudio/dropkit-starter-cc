@@ -100,7 +100,7 @@ Reference incidents: RoguePilot (Orca, Feb 2026), Comment-and-Control (Aonan Gua
 
 #### Urgent
 
-_(none — last urgent batch landed)_
+- [ ] **Sandbox fails to start on 24.04 droplet** — `kernel.apparmor_restrict_unprivileged_userns=1` (24.04 default) blocks bubblewrap's userns, so every sandboxed command falls through to an unsandboxed prompt. Without a working sandbox, `deny` rules only bind Claude's built-in tools — **Bash subprocesses bypass them** (verified against ToB `claude-code-config`), so credential-read and outbound-exec containment is not enforced. Fix = the official per-bwrap AppArmor profile from Anthropic's sandboxing docs (grants `userns` to `/usr/bin/bwrap` only, keeps the global restriction on). Bake into `install.sh` / cloud-init; also `npm i -g @anthropic-ai/sandbox-runtime` (seccomp/unix-socket helper). Verify `bwrap --unshare-net --dev-bind / / true` exits clean. Full diagnosis + profile: `docs/permissions.md` → "Primary cause: the sandbox can't start".
 
 #### Later
 
