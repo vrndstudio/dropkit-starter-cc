@@ -34,6 +34,27 @@ sudo apt-get install -y -qq \
   socat \
   unzip
 
+echo "==> Installing AppArmor profile for bubblewrap (Claude Code sandbox)"
+# Ubuntu 24.04+ sets kernel.apparmor_restrict_unprivileged_userns=1, which
+# blocks bwrap from creating the user namespace its sandbox needs. Every
+# sandboxed command then fails (bwrap: loopback: Failed RTM_NEWADDR) or falls
+# through to an unsandboxed prompt. A scoped profile grants userns to
+# /usr/bin/bwrap only, keeping the global restriction on everything else.
+# Official remedy from Anthropic's sandboxing docs; verified working on a 24.04
+# droplet. Full writeup: docs/permissions.md → "Primary cause was the sandbox
+# failing to start (FIXED)".
+bwrap_path="$(command -v bwrap)"
+sudo tee /etc/apparmor.d/bwrap >/dev/null <<EOF
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap $bwrap_path flags=(unconfined) {
+  userns,
+  include if exists <local/bwrap>
+}
+EOF
+sudo systemctl reload apparmor
+
 echo "==> Installing nvm + Node 22 LTS (Jod) as default"
 export NVM_DIR="$HOME/.nvm"
 if [ ! -s "$NVM_DIR/nvm.sh" ]; then
@@ -47,6 +68,9 @@ nvm use default
 
 echo "==> Installing Claude Code"
 npm install -g @anthropic-ai/claude-code
+
+echo "==> Installing sandbox-runtime helper (seccomp/unix-socket support)"
+npm install -g @anthropic-ai/sandbox-runtime
 
 echo "==> Installing pnpm + npm-check-updates"
 npm install -g pnpm npm-check-updates
@@ -171,6 +195,7 @@ echo "  bun --version"
 echo "  ncu --version"
 echo "  claude --version"
 echo "  rg --version"
+echo "  bwrap --unshare-net --dev-bind / / true && echo 'sandbox OK'  # AppArmor profile working"
 echo "  echo \$SHELL                # expect /usr/bin/zsh after next login"
 echo "  grep -A1 'dotfiles' ~/.gitconfig | head -20"
 echo
