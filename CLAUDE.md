@@ -103,7 +103,7 @@ Reference incidents: RoguePilot (Orca, Feb 2026), Comment-and-Control (Aonan Gua
 
 - [ ] improve `README.md`
 - [ ] add step to delete cloned `dropkit-starter-cc` repo once done?
-- [ ] `.mcp.json` has `EXA_API_KEY` placeholder — wire to env var or prompt in `set-git-identity.sh`
+- [x] `.mcp.json` has `EXA_API_KEY` placeholder — wire to env var or prompt in `set-git-identity.sh`
 - [ ] add `shellcheck` / `shfmt` to install or as a prek hook (CLAUDE.md mandates them)
 
 ## Errors encountered while using latest droplet
@@ -114,9 +114,8 @@ Reference incidents: RoguePilot (Orca, Feb 2026), Comment-and-Control (Aonan Gua
   - gh (claude loves it) `sudo apt install gh`
   - `jq`
   - `npm install -g typescript-language-server typescript` for claude typescript plugin
-
 - let me run servers and check browser myself
-- how to set env variables????? (convo in cc in droplet)
+- how to set project env variables?
 
 ### Resolved
 

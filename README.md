@@ -128,7 +128,7 @@ remove ophanated deps
 
 ### Know issues
 
-- bemore specific on curl url preferences as detailed in the warning bit here https://code.claude.com/docs/en/permissions#read-only-commands
+- be more specific on curl url preferences as detailed in the warning bit here https://code.claude.com/docs/en/permissions#read-only-commands
 - Backslash-escaped paths: standardize in `CLAUDE.md` for bash commands: always quote paths with spaces, never backslash-escape. `.../Portfolio\ v3.html` — glob matching can't unescape backslashes. The same path with quotes (`"Portfolio v3.html"`) matches normally.
 - difficulty running 2 parallel claude sessions
 - laggy commands sometimes
