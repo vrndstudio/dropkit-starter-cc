@@ -156,8 +156,8 @@ copy_dotfile "$DOTFILES_DIR/.gitconfig" "$HOME/.gitconfig"
 echo "==> Merging .zshrc (preserving cloud-init's defaults)"
 merge_append "$DOTFILES_DIR/.zshrc" "$HOME/.zshrc"
 
-echo "==> Seeding ~/.zshrc.local (mode 0600, only if missing)"
-copy_secret_if_missing "$DOTFILES_DIR/.zshrc.local" "$HOME/.zshrc.local"
+echo "==> Seeding ~/.zshenv (mode 0600, only if missing)"
+copy_secret_if_missing "$DOTFILES_DIR/.zshenv" "$HOME/.zshenv"
 
 echo "==> Copying .aliases"
 copy_dotfile "$DOTFILES_DIR/.aliases" "$HOME/.aliases"
