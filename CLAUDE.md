@@ -95,12 +95,9 @@ Reference incidents: RoguePilot (Orca, Feb 2026), Comment-and-Control (Aonan Gua
 - [x] install Node 22 LTS via nvm (default alias, auto-activates in new shells via `.zshrc` init)
 - [x] install `pnpm`, `npm-check-updates`, `bun`
 - [x] bootstrap template repo at `~/code/template-repo/` with project-scoped `.claude/settings.json`, commands subset, `CLAUDE.md` placeholder, `.gitignore`, `.editorconfig`, plugin install doc
+- [x] **Fix sandbox on 24.04** — 24.04's `apparmor_restrict_unprivileged_userns=1` blocked bubblewrap's userns, so every sandboxed command fell through to an unsandboxed prompt (and `deny` rules weren't OS-enforced against Bash subprocesses). `install.sh` now writes a scoped AppArmor profile granting `userns` to `bwrap` alone + installs `@anthropic-ai/sandbox-runtime`. Verified working: `bwrap --unshare-net --dev-bind / / true` exits clean. Full writeup: `docs/permissions.md` → "Primary cause was the sandbox failing to start (FIXED)".
 
 ### Open
-
-#### Urgent
-
-- [ ] **Sandbox fails to start on 24.04 droplet** — `kernel.apparmor_restrict_unprivileged_userns=1` (24.04 default) blocks bubblewrap's userns, so every sandboxed command falls through to an unsandboxed prompt. Without a working sandbox, `deny` rules only bind Claude's built-in tools — **Bash subprocesses bypass them** (verified against ToB `claude-code-config`), so credential-read and outbound-exec containment is not enforced. Fix = the official per-bwrap AppArmor profile from Anthropic's sandboxing docs (grants `userns` to `/usr/bin/bwrap` only, keeps the global restriction on). Bake into `install.sh` / cloud-init; also `npm i -g @anthropic-ai/sandbox-runtime` (seccomp/unix-socket helper). Verify `bwrap --unshare-net --dev-bind / / true` exits clean. Full diagnosis + profile: `docs/permissions.md` → "Primary cause: the sandbox can't start".
 
 #### Later
 

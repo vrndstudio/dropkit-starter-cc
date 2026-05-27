@@ -142,139 +142,83 @@ Denying `WebFetch` doesn't stop `Bash(curl ...)`. Other-domain curl falls throug
 
 Below is a list of examples of the multiple user prompts i'm getting during sessions.
 
-### Primary cause: the sandbox can't start (bwrap netns failure)
+### Primary cause was the sandbox failing to start (FIXED)
 
-Before tuning the allowlist, check whether the sandbox runs at all. On the
-current droplet it does **not** — and that produces most of the prompts.
-
-Symptom messages, all the same bug:
-
-- "Sandbox blocked git. Retry."
-- "Sandbox blocks bwrap. Retry without sandbox."
-- "Sandbox blocked git (network namespace). Retry outside sandbox."
-- "Sandbox network namespace issue with rg. Retry outside sandbox."
-
-Reproduce:
+On Ubuntu 24.04 the sandbox could not start at all, which produced most prompts.
+**Fixed** with the AppArmor profile below (baked into `install.sh`). Verify on
+any droplet with:
 
 ```bash
-bwrap --unshare-net --dev-bind / / true
-# bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+bwrap --unshare-net --dev-bind / / true && echo "sandbox OK"
 ```
 
-**Root cause — Ubuntu 24.04 AppArmor blocks unprivileged user namespaces.**
-The visible loopback error is a symptom. The real block is one layer deeper:
+Exit 0 + `sandbox OK` = working. The old failure was
+`bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`.
+
+**Root cause.** 24.04 ships `kernel.apparmor_restrict_unprivileged_userns=1`,
+forbidding an unconfined process from creating a user namespace with a uid map.
+bubblewrap's sandbox _is_ a userns (it maps to root inside, then unshares a net
+namespace and brings up `lo`). The uid_map write is denied, so the chain fails
+and surfaces as the loopback error. Claude Code uses `--unshare-net` on every
+command, so **every sandboxed command failed to start** and fell through to an
+unsandboxed prompt — including already-allowlisted `git log:*`, `rg:*`, `jq:*`,
+because the "don't ask again" shortcut only appears after a _successful_ sandbox
+run.
+
+#### The fix: scoped AppArmor profile (verified working)
+
+Anthropic's official remedy for "Ubuntu 24.04 and later"
+([docs](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2)).
+Keeps the global restriction on — every *other* unprivileged binary stays
+blocked — and grants `userns` to `bwrap` alone. `install.sh` writes this with
+the live `command -v bwrap` path:
 
 ```bash
-sysctl kernel.apparmor_restrict_unprivileged_userns   # = 1  (24.04 default)
-unshare --user --map-root-user true                   # uid_map: Operation not permitted
-grep CapEff /proc/self/status                          # 0000…0000 — no effective caps
+sudo tee /etc/apparmor.d/bwrap > /dev/null <<'EOF'
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+  include if exists <local/bwrap>
+}
+EOF
+sudo systemctl reload apparmor
+bwrap --unshare-net --dev-bind / / true && echo "sandbox OK"   # verify
 ```
 
-24.04 ships `kernel.apparmor_restrict_unprivileged_userns=1`, which forbids an
-unconfined process from creating a user namespace with a uid map. bubblewrap's
-sandbox _is_ a user namespace: it unshares userns, maps itself to root inside,
-then unshares a net namespace and brings up `lo` via `RTM_NEWADDR` — which needs
-`CAP_NET_ADMIN` that only exists once the userns root mapping succeeds. The
-uid_map write is denied, so the chain fails at the first step and surfaces as
-the loopback error. Claude Code's sandbox uses `--unshare-net` on every command,
-so **every sandboxed command fails to start** and falls through to an
-unsandboxed prompt.
+Optional seccomp helper for Unix-domain-socket blocking (hardens the
+`docker.sock` → host path), also installed by `install.sh`:
 
-This is why allowlisted commands still prompt: `git log:*`, `rg:*`, `jq:*` are
-all already in `allow`, yet they prompt. The "don't ask again" shortcut only
-appears after a _successful_ sandbox run — and the sandbox never succeeds here.
-So the six allowlist causes below are real, but secondary; fix this first.
+```bash
+npm install -g @anthropic-ai/sandbox-runtime
+```
 
-Ruled out: bubblewrap is current (upgrading does nothing), seccomp is off
-(`Seccomp: 0`), the kernel allows userns in general
-(`max_user_namespaces=31614`), and it's a bare KVM droplet
-(`systemd-detect-virt=kvm`), not a nested container. The only blocker is the
-AppArmor userns restriction.
+> Why not the global sysctl flip
+> (`kernel.apparmor_restrict_unprivileged_userns=0`)? It re-allows unprivileged
+> userns for *every* binary, widening the local-privilege-escalation surface.
+> The scoped profile is the same fix without that cost.
 
-#### Fix order for the sandbox
+#### Why the sandbox matters (it's the only OS-level enforcement of `deny`)
 
-1. **Grant `userns` to bwrap with an AppArmor profile (official fix).** This is
-   the exact remedy Anthropic's sandboxing docs ship for "Ubuntu 24.04 and
-   later" ([code.claude.com/docs/en/sandboxing](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2)).
-   It keeps the global restriction on — every *other* unprivileged binary stays
-   blocked — and grants the `userns` capability to `/usr/bin/bwrap` alone:
+Verified against ToB `claude-code-config`: *"Without `/sandbox`, deny rules only
+block Claude's built-in tools — Bash commands bypass them. With `/sandbox`
+enabled, the same rules are enforced at the OS level."* So with the sandbox
+**broken or off**, `deny` entries (`Bash(curl:*)`, `Read(**/.env*)`) and
+credential-path `Read`-denies are **not** enforced against Bash subprocesses — a
+subprocess can read `~/.ssh` / `~/.aws/credentials` and reach the network via
+`node`/`npx`. Pre-tool hooks (`rm -rf`, push-to-main) still fire (they inspect
+the command string). With the profile applied, the sandbox runs and these denies
+become OS-enforced.
 
-   ```bash
-   sudo tee /etc/apparmor.d/bwrap > /dev/null <<'EOF'
-   abi <abi/4.0>,
-   include <tunables/global>
-
-   profile bwrap /usr/bin/bwrap flags=(unconfined) {
-     userns,
-     include if exists <local/bwrap>
-   }
-   EOF
-   sudo systemctl reload apparmor
-   # verify — should print nothing and exit 0:
-   bwrap --unshare-net --dev-bind / / true && echo "sandbox OK"
-   ```
-
-   The profile applies only to `bwrap` itself, not to the commands it runs
-   inside the sandbox. Confirmed the droplet's bwrap is at `/usr/bin/bwrap`, so
-   the hardcoded path matches. Requires the `apparmor` profile mechanism (24.04
-   ships it). Once this passes, the sandbox starts and most prompts disappear.
-
-   > Cruder alternative — global sysctl flip
-   > (`kernel.apparmor_restrict_unprivileged_userns=0` in
-   > `/etc/sysctl.d/60-userns.conf`). This re-allows unprivileged userns for
-   > *every* binary, not just bwrap, widening the local-privilege-escalation
-   > surface across the box. Only defensible because the droplet is
-   > single-user with passwordless sudo + docker-group (root is already
-   > trivially reachable, so userns LPE guards little). Prefer the scoped
-   > profile above unless the AppArmor mechanism is unavailable.
-
-2. **Install the optional seccomp helper** for Unix-domain-socket blocking
-   (hardens against the `docker.sock` → host escalation path the docs call out):
-
-   ```bash
-   npm install -g @anthropic-ai/sandbox-runtime
-   ```
-
-   `bubblewrap` and `socat` (the two required packages) are already present.
-
-3. **Bake steps 1–2 into provisioning** (`install.sh` / cloud-init) so every
-   fresh droplet has a working sandbox from boot. Durable home for the fix —
-   see `CLAUDE.md` → Next Steps.
-
-4. **Fallback while the sandbox is broken — disable the sandbox per trusted
-   repo.** A broken sandbox protects nothing: it fails open to a prompt you
-   click through. In a repo you trust, drop the dead layer:
-
-   ```jsonc
-   // <project>/.claude/settings.local.json (gitignored)
-   { "sandbox": { "enabled": false } }
-   ```
-
-   Keep the `deny` block and pre-tool hooks — those still fire (see the gap
-   note below for what they do *not* catch). Do **not** disable the sandbox
-   globally for untrusted-repo review: there it's the only thing containing a
-   poisoned README running `node -e` / `pnpm dlx` / `npx` egress, so fixing
-   bwrap (step 1) is the real requirement before any untrusted work.
-
-> **Threat-model gap while the sandbox is down (verified against ToB
-> `claude-code-config`):** *"Without `/sandbox`, deny rules only block Claude's
-> built-in tools — Bash commands bypass them. With `/sandbox` enabled, the same
-> rules are enforced at the OS level."* So our `deny` entries (`Bash(curl:*)`,
-> `Read(**/.env*)`, etc.) and the `Read`-deny credential paths are **not**
-> OS-enforced against Bash subprocesses without working bwrap — a subprocess can
-> read `~/.ssh` / `~/.aws/credentials` (which the sandbox's *default* read policy
-> also allows unless added to `denyRead`) and reach the network via `node`/`npx`.
-> The pre-tool hooks (`rm -rf`, push-to-main) still fire because they inspect the
-> command string before execution. Fixing bwrap closes the rest.
->
-> Related hardening once the sandbox works: set `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`
-> to strip Anthropic/cloud creds from Bash subprocess env, and add `~/.ssh` /
-> `~/.aws` to `sandbox.filesystem.denyRead` (the default read policy allows them).
+Hardening now that the sandbox works: set `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` to
+strip cloud creds from Bash subprocess env, and add `~/.ssh` / `~/.aws` to
+`sandbox.filesystem.denyRead` (the default read policy allows them).
 
 ### Allowlist causes & fixes
 
-The prompts that remain after the sandbox works cluster into six causes. Each
-has a distinct fix — allowlist alone won't catch all of them.
+With the sandbox working, remaining prompts cluster into six causes. Each has a
+distinct fix — allowlist alone won't catch all of them.
 
 #### 1. Compound commands (`A && B`)
 
@@ -411,12 +355,11 @@ Defensible middle path: **per-project opt-out via `.claude/settings.local.json`*
 { "sandbox": { "enabled": false } }
 ```
 
-Keep sandbox on globally for the untrusted-repo-review use case. But note the
-distinction from the **bwrap netns failure** above: there the sandbox is
-_broken_ (fails open), so per-project disabling loses no security that's
-actually being enforced. The order is: fix bwrap → sandbox works → keep it on
-for untrusted work and lean on command shapes + allowlist for friction. Only
-disable per-project, and only while bwrap is unfixed or the repo is trusted.
+Keep sandbox on globally for the untrusted-repo-review use case. With the
+AppArmor profile applied the sandbox now runs and enforces `deny` at the OS
+level (see the FIXED section above), so disabling it does lose real security.
+Only disable per-project, in trusted repos, to cut friction — and lean on
+command shapes + allowlist everywhere else.
 
 ### Interruptions recorded
 
