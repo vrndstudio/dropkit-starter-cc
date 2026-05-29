@@ -102,6 +102,7 @@ Reference incidents: RoguePilot (Orca, Feb 2026), Comment-and-Control (Aonan Gua
 #### Later
 
 - [ ] improve `README.md`
+- [ ] verify new `install.sh` works
 - [ ] add step to delete cloned `dropkit-starter-cc` repo once done?
 - [x] `.mcp.json` has `EXA_API_KEY` placeholder — wire to env var or prompt in `set-git-identity.sh`
 - [ ] add `shellcheck` / `shfmt` to install or as a prek hook (CLAUDE.md mandates them)
