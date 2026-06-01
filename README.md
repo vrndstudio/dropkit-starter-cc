@@ -35,7 +35,7 @@ tailscale ping <droplet>
 dropkit off <droplet>    # if ip address differs from tailscale's
 dropkit on <droplet>
 
-dropkit enable-tailscale <droplet>
+dropkit enable-tailscale <droplet>    # if tailscale gets disabled
 
 # after waking, if remote host identification has changed
 ssh-kegen -R 100.103... # whatever IP the warning showed
