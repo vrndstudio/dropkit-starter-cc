@@ -158,3 +158,25 @@ Host dropkit.\*
 ServerAliveInterval 30
 ServerAliveCountMax 6
 TCPKeepAlive yes
+
+
+## VS Code Remote-SSH on droplets
+
+- Connection setup fails after a VS Code/extension update with
+  "Failed to set up dynamic port forwarding" + `listen EINVAL` on the
+  local askpass socket. App is fine (local windows render normally);
+  fault is isolated to the Remote-SSH connection.
+- Fix: `"remote.SSH.useLocalServer": false`. This routes around the
+  failing askpass socket. VS Code then prompts once for the remote OS
+  (select Linux) and caches it in `remote.SSH.remotePlatform`.
+- Keep `lockfilesInTmp: true`, `useExecServer: false`, `connectTimeout: 60`.
+- If useLocalServer:false ever breaks git agent forwarding, flip it back
+  to true and instead downgrade the Remote-SSH extension via
+  Extensions > gear > Install Another Version, then pin
+  `"extensions.autoUpdate": false`.
+
+
+  ### dev server stuck 
+
+
+

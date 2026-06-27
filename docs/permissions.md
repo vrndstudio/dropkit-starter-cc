@@ -543,7 +543,7 @@ Sandbox network namespace issue with rg. Retry outside sandbox.
 Error: PreToolUse:Edit hook error: [python3 ${CLAUDE_PLUGIN_ROOT}/hooks/security_reminder_hook.py]: ⚠️ Security Warning: dangerouslySetInnerHTML can lead to XSS vulnerabilities if used with untrusted content. Ensure all content is properly sanitized using an HTML sanitizer library like DOMPurify, or use safe alternatives.
 Found 2 new diagnostic issues in 1 file (ctrl+o to expand)
 
-───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+─────────────────────────────────────────────────────────
 Bash command (unsandboxed)
 
 date +%Y-%m-%d && ls docs/superpowers/specs/ 2>/dev/null || echo "specs dir missing"
@@ -559,7 +559,7 @@ Sandbox network block. Retry disabled sandbox.
 ---NAV FILES---
 EmailLink.test.tsx
 
-─────────────────────────────────────────────────────────────────────────────────────────────
+─────────────────────────────────────────────────────────
 Bash command (unsandboxed)
 
 git mv components/nav/PageFooter.tsx components/nav/Footer.tsx && git mv components/nav/PageFooter.test.tsx components/nav/Footer.test.tsx
@@ -578,7 +578,11 @@ Read LandingHero to understand how HeroFixedElements integrates
 
 find with '-exec' executes commands or modifies files — cannot be auto-allowed by a Bash(find:\*) prefix rule
 
-Do you want to proceed?
+---
+---
+
+prek hook hit sandbox. Retry unsandboxed.
+
 
 ### Settings
 

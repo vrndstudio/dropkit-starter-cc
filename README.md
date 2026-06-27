@@ -41,6 +41,14 @@ dropkit enable-tailscale <droplet>    # if tailscale gets disabled
 ssh-kegen -R 100.103... # whatever IP the warning showed
 ```
 
+#### Fix timezone
+
+```bash
+timedatectl # shows current settings
+
+sudo timedatectl set-timezone Europe/Paris 
+```
+
 ### Clone this starter
 
 Most dotfiles and defaults in this repo draw from Trail of Bit's [claude-code-config](https://github.com/trailofbits/claude-code-config/tree/main).
